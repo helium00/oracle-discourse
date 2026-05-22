@@ -70,7 +70,6 @@ set -a
 source .env
 set +a
 
-APP_IP="${APP_IP:-10.0.1.204}"
 APP_PORT="${APP_PORT:-8090}"
 DISCOURSE_HOSTNAME="${DISCOURSE_HOSTNAME}"
 DISCOURSE_SITE_NAME="${DISCOURSE_SITE_NAME:-My Community}"
@@ -84,7 +83,6 @@ DISCOURSE_DOCKER_DIR="${DISCOURSE_DOCKER_DIR:-/var/discourse}"
 mkdir -p "${PROJECT_DIR}/containers"
 
 sed \
-  -e "s|__APP_IP__|${APP_IP}|g" \
   -e "s|__APP_PORT__|${APP_PORT}|g" \
   -e "s|__DISCOURSE_HOSTNAME__|${DISCOURSE_HOSTNAME}|g" \
   -e "s|__DISCOURSE_SITE_NAME__|${DISCOURSE_SITE_NAME}|g" \

@@ -10,9 +10,8 @@ templates:
   - "templates/web.template.yml"
   - "templates/web.ratelimited.template.yml"
 
-## Bind only to the private IP — Cloudflare Tunnel proxies public traffic.
 expose:
-  - "__APP_IP__:__APP_PORT__:80"
+  - "__APP_PORT__:80"
 
 params:
   db_default_text_search_config: "pg_catalog.english"
