@@ -12,6 +12,11 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 SERVICE="${1:-}"
 LINES="${2:-100}"
 
+if ! [[ "$LINES" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: line count must be a positive integer, got: $LINES"
+  exit 1
+fi
+
 cd "$PROJECT_DIR"
 
 if [[ -n "$SERVICE" ]]; then
