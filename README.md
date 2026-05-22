@@ -29,10 +29,11 @@ See [docs/architecture.md](docs/architecture.md) for the full topology diagram.
 ```bash
 git clone <GITHUB_REPOSITORY_URL> discourse-docker-community
 cd discourse-docker-community
-make install   # copies .env, opens editor, sets permissions, starts stack
+make install   # generates passwords, opens editor, sets permissions, starts stack
 ```
 
-After editing `.env`, the stack starts automatically. First boot takes 5–15 minutes.
+`setup.sh` auto-generates `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, and `DISCOURSE_ADMIN_PASSWORD`.
+You only need to fill in hostname, admin email, and SMTP credentials. First boot takes 5–15 minutes.
 
 ```bash
 make health    # verify everything is up
@@ -69,31 +70,37 @@ cd discourse-docker-community
 make install
 ```
 
-This command:
-1. Copies `.env.example` → `.env` (skipped if `.env` already exists)
-2. Opens `.env` in your editor (`$EDITOR`, default: `nano`)
-3. Runs `./scripts/permissions.sh` to set executable bits
-4. Starts the stack with `docker compose up -d`
+`scripts/setup.sh` runs automatically and:
 
-Minimum required changes in `.env` before saving:
+1. Generates random passwords for `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `DISCOURSE_ADMIN_PASSWORD` via `openssl rand`
+2. Detects system timezone from `/etc/timezone` (fallback: `Europe/Madrid`)
+3. Shows a summary of the generated values
+4. Opens `.env` in your editor for the remaining required fields
+5. Validates after you save — warns if any placeholder is still unfilled
+
+Fields you must fill manually in the editor:
 
 | Variable | What to set |
 |---|---|
 | `DISCOURSE_HOSTNAME` | Your public domain, e.g. `community.example.com` |
 | `DISCOURSE_ADMIN_EMAIL` | Your admin email address |
-| `DISCOURSE_ADMIN_PASSWORD` | A strong password (change after first login) |
 | `DISCOURSE_DEVELOPER_EMAILS` | Same as admin email |
-| `POSTGRES_PASSWORD` | Strong random string: `openssl rand -base64 32` |
-| `REDIS_PASSWORD` | Strong random string: `openssl rand -base64 32` |
 | `DISCOURSE_SMTP_USER_NAME` | Your Brevo login email |
 | `DISCOURSE_SMTP_PASSWORD` | Your Brevo SMTP API key (not your account password) |
 
+Fields auto-filled by `setup.sh` (no manual action needed):
+
+| Variable | How it's set |
+|---|---|
+| `POSTGRES_PASSWORD` | `openssl rand -hex 24` |
+| `REDIS_PASSWORD` | `openssl rand -hex 24` |
+| `DISCOURSE_ADMIN_PASSWORD` | `openssl rand -hex 12` — change after first login |
+| `TIMEZONE` | Detected from `/etc/timezone` |
+
 #### Without Make
 
-If `make` is not available, run the steps manually:
-
 ```bash
-cp .env.example .env && nano .env
+./scripts/setup.sh   # generates passwords, opens editor, validates
 ./scripts/permissions.sh
 ./scripts/start.sh
 ```

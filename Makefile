@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install start stop restart logs backup restore update health permissions
+.PHONY: help install setup start stop restart logs backup restore update health permissions
 
 EDITOR ?= nano
 
@@ -10,16 +10,13 @@ help: ## Show available targets
 # Setup
 # -------------------------------------------------------
 
-install: ## Copy .env.example → .env, open editor, set permissions, start
-	@if [ ! -f .env ]; then \
-	  cp .env.example .env; \
-	  echo "[install] .env created — opening editor to configure..."; \
-	  $(EDITOR) .env; \
-	else \
-	  echo "[install] .env already exists — skipping copy (edit manually if needed)"; \
-	fi
+install: ## Generate .env (random passwords + system timezone), open editor, start
+	@EDITOR=$(EDITOR) ./scripts/setup.sh
 	@./scripts/permissions.sh
 	@./scripts/start.sh
+
+setup: ## Generate .env only (no start) — useful to re-inspect before starting
+	@EDITOR=$(EDITOR) ./scripts/setup.sh
 
 # -------------------------------------------------------
 # Operations
