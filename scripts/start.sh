@@ -18,12 +18,12 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting Discourse..."
 cd "$DISCOURSE_DOCKER_DIR"
 sudo ./launcher start app
 
-# Ensure shared network exists and connect app + cloudflared to it.
-# Cloudflare Tunnel must be configured to use http://app:80 as the service URL.
-docker network create discourse-cf 2>/dev/null || true
-docker network connect discourse-cf app 2>/dev/null || true
-if docker inspect cloudflared &>/dev/null; then
-  docker network connect discourse-cf cloudflared 2>/dev/null || true
-fi
+# Move app off the default bridge onto a custom network.
+# Docker's DNAT rules exclude the container's own bridge — so cloudflared
+# (on bridge) cannot reach app:8090 if app is also on bridge. Moving app
+# to a separate network fixes this, matching how all other services work.
+docker network create discourse-net 2>/dev/null || true
+docker network connect discourse-net app 2>/dev/null || true
+docker network disconnect bridge app 2>/dev/null || true
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Started. Follow logs with: make logs"
