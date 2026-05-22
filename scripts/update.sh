@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Pulls updated Docker images, creates a pre-update backup,
-# then restarts the stack. Runs healthcheck after restart.
+# Pulls the latest Discourse image, creates a pre-update backup,
+# then rebuilds and restarts the container.
+# Uses the launcher's `rebuild` command which does: stop → bootstrap → start.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_DIR"
-
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Checking for updated images..."
-docker compose pull
+if [[ -f .env ]]; then set -a; source .env; set +a; fi
+DISCOURSE_DOCKER_DIR="${DISCOURSE_DOCKER_DIR:-/var/discourse}"
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Creating pre-update backup..."
 "${SCRIPT_DIR}/backup.sh"
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Restarting stack with new images..."
-docker compose up -d --remove-orphans
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Rebuilding Discourse with latest image..."
+cd "$DISCOURSE_DOCKER_DIR"
+sudo ./launcher rebuild app
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Waiting 60 seconds for Discourse to initialize..."
 sleep 60

@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Generated app.yml contains secrets — do not commit
+containers/app.yml
+
 # Backups
 backups/
 *.tar.gz

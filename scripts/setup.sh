@@ -1,98 +1,101 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Initializes .env from .env.example with:
-#   - auto-generated passwords (openssl rand, hex, no special chars)
-#   - system timezone detected automatically
-#   - editor opened for the remaining required fields
-#   - post-editor validation to catch unfilled placeholders
+# Initializes .env from .env.example, then generates containers/app.yml
+# from templates/app.yml.template.
 #
-# Skipped entirely if .env already exists.
+# Skipped if .env already exists (use --force to override).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 EDITOR="${EDITOR:-nano}"
+FORCE="${1:-}"
 
 cd "$PROJECT_DIR"
 
-if [[ -f .env ]]; then
+# -------------------------------------------------------
+# Generate .env
+# -------------------------------------------------------
+if [[ -f .env && "$FORCE" != "--force" ]]; then
   echo "[setup] .env already exists — skipping generation."
-  echo "        Edit it manually or delete it and re-run: make install"
-  exit 0
-fi
+  echo "        Edit it manually or run: make setup FORCE=--force"
+else
+  echo "[setup] Generating .env from template..."
+  cp .env.example .env
 
-echo "[setup] Generating .env from template..."
-cp .env.example .env
-
-# -------------------------------------------------------
-# Generate passwords — hex only, no special chars
-# -------------------------------------------------------
-POSTGRES_PASS="$(openssl rand -hex 24)"
-REDIS_PASS="$(openssl rand -hex 24)"
-# Shorter admin password: user must change it after first login
-ADMIN_PASS="$(openssl rand -hex 12)"
-
-sed -i "s|changeme_strong_db_password|${POSTGRES_PASS}|"    .env
-sed -i "s|changeme_strong_redis_password|${REDIS_PASS}|"    .env
-sed -i "s|changeme_strong_admin_password|${ADMIN_PASS}|"    .env
-
-# -------------------------------------------------------
-# Detect system timezone
-# -------------------------------------------------------
-SYSTEM_TZ="$(
-  cat /etc/timezone 2>/dev/null ||
-  timedatectl show -p Timezone --value 2>/dev/null ||
-  echo "Europe/Madrid"
-)"
-sed -i "s|^TIMEZONE=.*|TIMEZONE=${SYSTEM_TZ}|" .env
-
-# -------------------------------------------------------
-# Summary
-# -------------------------------------------------------
-echo ""
-echo "  Auto-generated:"
-echo "  POSTGRES_PASSWORD = ${POSTGRES_PASS}"
-echo "  REDIS_PASSWORD    = ${REDIS_PASS}"
-echo "  ADMIN_PASSWORD    = ${ADMIN_PASS}  ← change after first login"
-echo "  TIMEZONE          = ${SYSTEM_TZ}  (from system)"
-echo ""
-echo "  Still required — fill these in the editor:"
-echo "  - DISCOURSE_HOSTNAME        your public domain"
-echo "  - DISCOURSE_ADMIN_EMAIL     admin email address"
-echo "  - DISCOURSE_DEVELOPER_EMAILS  same as admin email"
-echo "  - DISCOURSE_SMTP_USER_NAME  Brevo login email"
-echo "  - DISCOURSE_SMTP_PASSWORD   Brevo SMTP API key"
-echo ""
-read -rp "Press Enter to open the editor..."
-
-"${EDITOR}" .env
-
-# -------------------------------------------------------
-# Post-editor validation: warn about unfilled placeholders
-# -------------------------------------------------------
-PLACEHOLDERS=(
-  "DISCOURSE_HOSTNAME:community.example.com"
-  "DISCOURSE_ADMIN_EMAIL:admin@example.com"
-  "DISCOURSE_DEVELOPER_EMAILS:admin@example.com"
-  "DISCOURSE_SMTP_USER_NAME:your-brevo-login@example.com"
-  "DISCOURSE_SMTP_PASSWORD:your-brevo-smtp-api-key"
-)
-
-WARNINGS=0
-for entry in "${PLACEHOLDERS[@]}"; do
-  key="${entry%%:*}"
-  placeholder="${entry#*:}"
-  if grep -q "^${key}=${placeholder}$" .env 2>/dev/null; then
-    echo "  WARNING: ${key} is still the example placeholder — update it before starting"
-    WARNINGS=$((WARNINGS + 1))
-  fi
-done
-
-if [[ $WARNINGS -gt 0 ]]; then
   echo ""
-  echo "  ${WARNINGS} field(s) still need to be configured."
-  echo "  Edit .env and then run: make start"
-  exit 1
+  echo "  Required — fill these in the editor:"
+  echo "  - DISCOURSE_HOSTNAME        your public domain"
+  echo "  - DISCOURSE_DEVELOPER_EMAILS  admin email (first admin registers with this)"
+  echo "  - DISCOURSE_SMTP_USER_NAME  Brevo login email"
+  echo "  - DISCOURSE_SMTP_PASSWORD   Brevo SMTP API key"
+  echo ""
+  read -rp "Press Enter to open the editor..."
+
+  "${EDITOR}" .env
+
+  # Post-editor validation: warn about unfilled placeholders
+  PLACEHOLDERS=(
+    "DISCOURSE_HOSTNAME:community.example.com"
+    "DISCOURSE_DEVELOPER_EMAILS:admin@example.com"
+    "DISCOURSE_SMTP_USER_NAME:your-brevo-login@example.com"
+    "DISCOURSE_SMTP_PASSWORD:your-brevo-smtp-api-key"
+  )
+
+  WARNINGS=0
+  for entry in "${PLACEHOLDERS[@]}"; do
+    key="${entry%%:*}"
+    placeholder="${entry#*:}"
+    if grep -q "^${key}=${placeholder}$" .env 2>/dev/null; then
+      echo "  WARNING: ${key} is still the example placeholder — update it before bootstrapping"
+      WARNINGS=$((WARNINGS + 1))
+    fi
+  done
+
+  if [[ $WARNINGS -gt 0 ]]; then
+    echo ""
+    echo "  ${WARNINGS} field(s) still need to be configured."
+    echo "  Edit .env and then run: make bootstrap"
+    exit 1
+  fi
+
+  echo "[setup] .env is ready."
 fi
 
-echo "[setup] .env is ready."
+# -------------------------------------------------------
+# Generate containers/app.yml from template
+# -------------------------------------------------------
+set -a
+# shellcheck source=../.env
+source .env
+set +a
+
+APP_IP="${APP_IP:-10.0.1.204}"
+APP_PORT="${APP_PORT:-8090}"
+DISCOURSE_HOSTNAME="${DISCOURSE_HOSTNAME}"
+DISCOURSE_SITE_NAME="${DISCOURSE_SITE_NAME:-My Community}"
+DISCOURSE_DEVELOPER_EMAILS="${DISCOURSE_DEVELOPER_EMAILS}"
+DISCOURSE_SMTP_ADDRESS="${DISCOURSE_SMTP_ADDRESS:-smtp-relay.brevo.com}"
+DISCOURSE_SMTP_PORT="${DISCOURSE_SMTP_PORT:-587}"
+DISCOURSE_SMTP_USER_NAME="${DISCOURSE_SMTP_USER_NAME}"
+DISCOURSE_SMTP_PASSWORD="${DISCOURSE_SMTP_PASSWORD}"
+DISCOURSE_DOCKER_DIR="${DISCOURSE_DOCKER_DIR:-/var/discourse}"
+
+mkdir -p "${PROJECT_DIR}/containers"
+
+sed \
+  -e "s|__APP_IP__|${APP_IP}|g" \
+  -e "s|__APP_PORT__|${APP_PORT}|g" \
+  -e "s|__DISCOURSE_HOSTNAME__|${DISCOURSE_HOSTNAME}|g" \
+  -e "s|__DISCOURSE_SITE_NAME__|${DISCOURSE_SITE_NAME}|g" \
+  -e "s|__DISCOURSE_DEVELOPER_EMAILS__|${DISCOURSE_DEVELOPER_EMAILS}|g" \
+  -e "s|__DISCOURSE_SMTP_ADDRESS__|${DISCOURSE_SMTP_ADDRESS}|g" \
+  -e "s|__DISCOURSE_SMTP_PORT__|${DISCOURSE_SMTP_PORT}|g" \
+  -e "s|__DISCOURSE_SMTP_USER_NAME__|${DISCOURSE_SMTP_USER_NAME}|g" \
+  -e "s|__DISCOURSE_SMTP_PASSWORD__|${DISCOURSE_SMTP_PASSWORD}|g" \
+  -e "s|__DISCOURSE_DOCKER_DIR__|${DISCOURSE_DOCKER_DIR}|g" \
+  "${PROJECT_DIR}/templates/app.yml.template" \
+  > "${PROJECT_DIR}/containers/app.yml"
+
+echo "[setup] Generated containers/app.yml"
+echo "        Review it, then run: make bootstrap"

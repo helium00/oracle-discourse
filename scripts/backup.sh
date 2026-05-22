@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Creates a timestamped backup of the PostgreSQL database and the
-# Discourse uploads volume. Backups are stored in ./backups/.
-# The ./backups/ directory is excluded from git via .gitignore.
+# Creates a timestamped backup of the PostgreSQL database and uploads.
+# Backups are stored in ./backups/ (excluded from git).
+#
+# Requires the 'app' container to be running.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -15,36 +16,30 @@ mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 
 cd "$PROJECT_DIR"
+if [[ -f .env ]]; then set -a; source .env; set +a; fi
+DISCOURSE_DOCKER_DIR="${DISCOURSE_DOCKER_DIR:-/var/discourse}"
 
-if [[ -f .env ]]; then
-  set -a
-  # shellcheck source=../.env
-  source .env
-  set +a
+if ! docker inspect --format='{{.State.Status}}' app 2>/dev/null | grep -q running; then
+  echo "ERROR: container 'app' is not running — start it with: make start"
+  exit 1
 fi
-
-POSTGRES_USER="${POSTGRES_USER:-discourse}"
-POSTGRES_DB="${POSTGRES_DB:-discourse}"
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting backup (${TIMESTAMP})..."
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Dumping PostgreSQL database..."
-docker compose exec -T postgresql \
-  pg_dump -U "${POSTGRES_USER}" "${POSTGRES_DB}" \
+docker exec app bash -c "pg_dump -U discourse discourse" \
   | gzip > "${BACKUP_PREFIX}_db.sql.gz"
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Archiving Discourse uploads volume..."
-# Guard: skip if the volume has never been created (stack not yet started)
-if docker volume inspect discourse-app-data &>/dev/null; then
-  docker run --rm \
-    -v discourse-app-data:/source:ro \
-    -v "${BACKUP_DIR}:/backup" \
-    alpine \
-    tar czf "/backup/discourse_backup_${TIMESTAMP}_uploads.tar.gz" -C /source .
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Archiving uploads..."
+UPLOADS_DIR="${DISCOURSE_DOCKER_DIR}/shared/standalone/uploads"
+if [[ -d "$UPLOADS_DIR" ]]; then
+  docker exec app bash -c "tar czf - /shared/uploads 2>/dev/null" \
+    > "${BACKUP_PREFIX}_uploads.tar.gz"
 else
-  echo "WARNING: discourse-app-data volume not found — skipping uploads backup (stack may not have been started yet)"
+  echo "WARNING: uploads directory not found at ${UPLOADS_DIR} — skipping"
 fi
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backup complete:"
 echo "  DB:      ${BACKUP_PREFIX}_db.sql.gz"
-echo "  Uploads: ${BACKUP_PREFIX}_uploads.tar.gz"
+[[ -f "${BACKUP_PREFIX}_uploads.tar.gz" ]] && \
+  echo "  Uploads: ${BACKUP_PREFIX}_uploads.tar.gz"

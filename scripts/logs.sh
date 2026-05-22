@@ -2,25 +2,14 @@
 set -euo pipefail
 
 # Usage:
-#   ./scripts/logs.sh               — tail all services
-#   ./scripts/logs.sh discourse     — tail only the discourse-app container
-#   ./scripts/logs.sh discourse 200 — tail last 200 lines of discourse
+#   ./scripts/logs.sh           — follow all logs
+#   ./scripts/logs.sh 200       — follow last 200 lines
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-
-SERVICE="${1:-}"
-LINES="${2:-100}"
+LINES="${1:-100}"
 
 if ! [[ "$LINES" =~ ^[0-9]+$ ]]; then
   echo "ERROR: line count must be a positive integer, got: $LINES"
   exit 1
 fi
 
-cd "$PROJECT_DIR"
-
-if [[ -n "$SERVICE" ]]; then
-  docker compose logs --tail="$LINES" -f "$SERVICE"
-else
-  docker compose logs --tail="$LINES" -f
-fi
+docker logs --tail="$LINES" -f app

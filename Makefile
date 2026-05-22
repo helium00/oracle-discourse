@@ -1,7 +1,8 @@
 .DEFAULT_GOAL := help
-.PHONY: help install setup start stop restart logs backup restore update health permissions
+.PHONY: help install setup bootstrap start stop restart logs backup restore update health permissions
 
 EDITOR ?= nano
+FORCE  ?=
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-14s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -10,29 +11,33 @@ help: ## Show available targets
 # Setup
 # -------------------------------------------------------
 
-install: ## Generate .env (random passwords + system timezone), open editor, start
-	@EDITOR=$(EDITOR) ./scripts/setup.sh
+install: ## Full first-time install: setup → bootstrap (10-20 min) → start
+	@EDITOR=$(EDITOR) ./scripts/setup.sh $(FORCE)
 	@./scripts/permissions.sh
+	@./scripts/bootstrap.sh
 	@./scripts/start.sh
 
-setup: ## Generate .env only (no start) — useful to re-inspect before starting
-	@EDITOR=$(EDITOR) ./scripts/setup.sh
+setup: ## Generate .env and containers/app.yml (no bootstrap, no start)
+	@EDITOR=$(EDITOR) ./scripts/setup.sh $(FORCE)
+
+bootstrap: ## Build the Discourse container from containers/app.yml
+	@./scripts/bootstrap.sh
 
 # -------------------------------------------------------
 # Operations
 # -------------------------------------------------------
 
-start: ## Start the stack
+start: ## Start the Discourse container
 	@./scripts/start.sh
 
-stop: ## Stop the stack
+stop: ## Stop the Discourse container
 	@./scripts/stop.sh
 
-restart: ## Restart all containers
+restart: ## Restart the Discourse container
 	@./scripts/restart.sh
 
-logs: ## Follow logs (SERVICE=discourse to filter; LINES=200 for more history)
-	@./scripts/logs.sh $(SERVICE) $(LINES)
+logs: ## Follow logs (LINES=200 for more history)
+	@./scripts/logs.sh $(LINES)
 
 health: ## Run health checks
 	@./scripts/healthcheck.sh
@@ -47,7 +52,7 @@ backup: ## Create a timestamped backup (DB + uploads)
 restore: ## Restore a backup — usage: make restore TIMESTAMP=20240815_143000
 	@./scripts/restore.sh $(TIMESTAMP)
 
-update: ## Pull new images, backup, restart, health check
+update: ## Backup, rebuild with latest image, health check
 	@./scripts/update.sh
 
 permissions: ## Fix script and backup directory permissions
