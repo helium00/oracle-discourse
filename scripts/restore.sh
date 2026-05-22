@@ -48,11 +48,22 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Stopping Discourse application (database st
 docker compose stop discourse
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Restoring PostgreSQL database from ${TIMESTAMP}..."
+# Drop and recreate the public schema to ensure a clean restore from pg_dump.
+# This avoids duplicate-object errors when restoring into a populated database.
+docker compose exec -T postgresql \
+  psql -U "${POSTGRES_USER}" "${POSTGRES_DB}" \
+  -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 gunzip -c "$DB_BACKUP" | docker compose exec -T postgresql \
   psql -U "${POSTGRES_USER}" "${POSTGRES_DB}"
 
 if [[ -f "$UPLOADS_BACKUP" ]]; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Restoring uploads volume..."
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Restoring uploads volume (clearing existing data first)..."
+  # Clear the volume before extracting to ensure a true point-in-time restore.
+  # Files deleted since the backup was taken would otherwise remain.
+  docker run --rm \
+    -v discourse-app-data:/target \
+    alpine \
+    sh -c "find /target -mindepth 1 -delete"
   docker run --rm \
     -v discourse-app-data:/target \
     -v "${BACKUP_DIR}:/backup:ro" \

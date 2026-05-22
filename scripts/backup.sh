@@ -34,11 +34,16 @@ docker compose exec -T postgresql \
   | gzip > "${BACKUP_PREFIX}_db.sql.gz"
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Archiving Discourse uploads volume..."
-docker run --rm \
-  -v discourse-app-data:/source:ro \
-  -v "${BACKUP_DIR}:/backup" \
-  alpine \
-  tar czf "/backup/discourse_backup_${TIMESTAMP}_uploads.tar.gz" -C /source .
+# Guard: skip if the volume has never been created (stack not yet started)
+if docker volume inspect discourse-app-data &>/dev/null; then
+  docker run --rm \
+    -v discourse-app-data:/source:ro \
+    -v "${BACKUP_DIR}:/backup" \
+    alpine \
+    tar czf "/backup/discourse_backup_${TIMESTAMP}_uploads.tar.gz" -C /source .
+else
+  echo "WARNING: discourse-app-data volume not found — skipping uploads backup (stack may not have been started yet)"
+fi
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Backup complete:"
 echo "  DB:      ${BACKUP_PREFIX}_db.sql.gz"
