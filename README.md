@@ -75,16 +75,23 @@ Minimum required changes before first start:
 ./scripts/start.sh
 ```
 
-### 5. Monitor initialization
+---
 
-First boot takes **5–15 minutes** while Discourse runs database migrations
-and creates the admin account.
+## Startup Procedure
+
+After `./scripts/start.sh`, Discourse bootstraps on first run:
+
+1. PostgreSQL and Redis start and pass their health checks.
+2. The `discourse-app` container starts and runs database migrations.
+3. The admin account defined in `.env` is created.
+
+First boot takes **5–15 minutes**. Monitor progress:
 
 ```bash
 ./scripts/logs.sh discourse
 ```
 
-Wait for `Puma starting in production` in the log output.
+Wait for `Puma starting in production` in the log output before testing access.
 
 ---
 
