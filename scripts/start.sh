@@ -18,9 +18,12 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting Discourse..."
 cd "$DISCOURSE_DOCKER_DIR"
 sudo ./launcher start app
 
-# Connect to shared Cloudflare network if it exists (allows cloudflared to reach app:80)
-if docker network inspect discourse-cf &>/dev/null; then
-  docker network connect discourse-cf app 2>/dev/null || true
+# Ensure shared network exists and connect app + cloudflared to it.
+# Cloudflare Tunnel must be configured to use http://app:80 as the service URL.
+docker network create discourse-cf 2>/dev/null || true
+docker network connect discourse-cf app 2>/dev/null || true
+if docker inspect cloudflared &>/dev/null; then
+  docker network connect discourse-cf cloudflared 2>/dev/null || true
 fi
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Started. Follow logs with: make logs"
