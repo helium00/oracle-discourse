@@ -24,6 +24,26 @@ See [docs/architecture.md](docs/architecture.md) for the full topology diagram.
 
 ---
 
+## Quick Start
+
+```bash
+git clone <GITHUB_REPOSITORY_URL> discourse-docker-community
+cd discourse-docker-community
+make install   # copies .env, opens editor, sets permissions, starts stack
+```
+
+After editing `.env`, the stack starts automatically. First boot takes 5–15 minutes.
+
+```bash
+make health    # verify everything is up
+make logs      # follow all logs
+make logs SERVICE=discourse   # follow only Discourse
+make backup    # create a backup
+make help      # list all available targets
+```
+
+---
+
 ## Prerequisites
 
 - Ubuntu server with Docker and Docker Compose installed
