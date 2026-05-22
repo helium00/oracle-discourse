@@ -63,14 +63,19 @@ git clone <GITHUB_REPOSITORY_URL> discourse-docker-community
 cd discourse-docker-community
 ```
 
-### 2. Copy and configure `.env`
+### 2. Run the installer
 
 ```bash
-cp .env.example .env
-nano .env
+make install
 ```
 
-Minimum required changes before first start:
+This command:
+1. Copies `.env.example` → `.env` (skipped if `.env` already exists)
+2. Opens `.env` in your editor (`$EDITOR`, default: `nano`)
+3. Runs `./scripts/permissions.sh` to set executable bits
+4. Starts the stack with `docker compose up -d`
+
+Minimum required changes in `.env` before saving:
 
 | Variable | What to set |
 |---|---|
@@ -83,15 +88,13 @@ Minimum required changes before first start:
 | `DISCOURSE_SMTP_USER_NAME` | Your Brevo login email |
 | `DISCOURSE_SMTP_PASSWORD` | Your Brevo SMTP API key (not your account password) |
 
-### 3. Fix script permissions
+#### Without Make
+
+If `make` is not available, run the steps manually:
 
 ```bash
+cp .env.example .env && nano .env
 ./scripts/permissions.sh
-```
-
-### 4. Start the stack
-
-```bash
 ./scripts/start.sh
 ```
 
@@ -108,7 +111,8 @@ After `./scripts/start.sh`, Discourse bootstraps on first run:
 First boot takes **5–15 minutes**. Monitor progress:
 
 ```bash
-./scripts/logs.sh discourse
+make logs SERVICE=discourse
+# or: ./scripts/logs.sh discourse
 ```
 
 Wait for `Puma starting in production` in the log output before testing access.
@@ -155,7 +159,8 @@ should show `running` status.
 ### Run full health check
 
 ```bash
-./scripts/healthcheck.sh
+make health
+# or: ./scripts/healthcheck.sh
 ```
 
 ### Test HTTP access from the host
@@ -196,7 +201,8 @@ See [docs/smtp-brevo.md](docs/smtp-brevo.md) for complete instructions:
 ### Create a backup
 
 ```bash
-./scripts/backup.sh
+make backup
+# or: ./scripts/backup.sh
 ```
 
 Backups are saved to `./backups/` (excluded from git). Each run creates:
@@ -206,7 +212,8 @@ Backups are saved to `./backups/` (excluded from git). Each run creates:
 ### Restore from backup
 
 ```bash
-./scripts/restore.sh 20240815_143000
+make restore TIMESTAMP=20240815_143000
+# or: ./scripts/restore.sh 20240815_143000
 ```
 
 ### Automate daily backups
@@ -214,7 +221,7 @@ Backups are saved to `./backups/` (excluded from git). Each run creates:
 ```bash
 crontab -e
 # Add:
-0 2 * * * /path/to/discourse-docker-community/scripts/backup.sh >> /var/log/discourse-backup.log 2>&1
+0 2 * * * cd /path/to/discourse-docker-community && make backup >> /var/log/discourse-backup.log 2>&1
 ```
 
 See [docs/backup-restore.md](docs/backup-restore.md) for full details and
@@ -225,7 +232,8 @@ disaster recovery instructions.
 ## Updates
 
 ```bash
-./scripts/update.sh
+make update
+# or: ./scripts/update.sh
 ```
 
 Pulls updated images, creates a pre-update backup, restarts the stack, and
@@ -242,10 +250,14 @@ See [docs/operations.md](docs/operations.md) for maintenance window procedures.
 docker compose ps
 
 # Follow all logs
-./scripts/logs.sh
+make logs
+make logs SERVICE=discourse        # only Discourse
+make logs SERVICE=discourse LINES=500
 
-# Follow only Discourse logs
-./scripts/logs.sh discourse
+# Start / stop / restart
+make start
+make stop
+make restart
 
 # Restart a single container
 docker compose restart discourse
@@ -281,7 +293,7 @@ See [docs/cloudflare-tunnel.md](docs/cloudflare-tunnel.md) for full details.
   and `DISCOURSE_ADMIN_PASSWORD` (at least 32 random characters).
 - Never commit `.env` to version control — it is excluded by `.gitignore`.
 - Restrict SSH access to the host: key-based authentication only, disable password auth.
-- Keep Docker images updated regularly with `./scripts/update.sh`.
+- Keep Docker images updated regularly with `make update`.
 - Store offsite backups (S3, Backblaze B2, or equivalent).
 - Enable 2FA on your Cloudflare account.
 - Enable 2FA on your Brevo account.
@@ -294,7 +306,7 @@ See [docs/cloudflare-tunnel.md](docs/cloudflare-tunnel.md) for full details.
 
 ## Operational Best Practices
 
-- Run `./scripts/backup.sh` before every `./scripts/update.sh`.
+- Run `make backup` before every `make update`.
 - Monitor disk usage weekly: `docker system df`.
 - Clean old backups monthly: `find backups/ -name "discourse_backup_*" -mtime +30 -delete`.
 - Test your restore procedure periodically — an untested backup is not a backup.
